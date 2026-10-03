@@ -1,4 +1,4 @@
-name: Build IPA
+name: Build Universal IPA
 
 on: [push]
 
@@ -17,13 +17,28 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Create Cordova Project & Build
+      - name: Create Cordova Project & Set Target iOS
         run: |
           cordova create AudioApp com.offline.player OfflinePlayer
           cp index.html AudioApp/www/index.html
           cd AudioApp
           cordova platform add ios
-          cordova build ios --emulator -- --buildFlag="-UseModernBuildSystem=YES" --buildFlag="CODE_SIGNING_ALLOWED=NO" --buildFlag="CODE_SIGNING_REQUIRED=NO"
+
+      - name: Build for Real iPhone (arm64, iOS 12.0+)
+        run: |
+          cd AudioApp/platforms/ios
+          xcodebuild -project OfflinePlayer.xcodeproj \
+                     -scheme OfflinePlayer \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     ARCHS="arm64" \
+                     ONLY_ACTIVE_ARCH=NO \
+                     IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+                     TARGETED_DEVICE_FAMILY=1 \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_IDENTITY="" \
+                     build
 
       - name: Package to IPA
         run: |
