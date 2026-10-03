@@ -1,0 +1,46 @@
+name: Build IPA
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Cordova
+        run: npm install -g cordova
+
+      - name: Create Cordova Project & Prepare iOS
+        run: |
+          cordova create AudioApp com.offline.player OfflinePlayer
+          cp index.html AudioApp/www/index.html
+          cd AudioApp
+          cordova platform add ios
+
+      - name: Build Xcode Project
+        run: |
+          cd AudioApp/platforms/ios
+          xcodebuild -project OfflinePlayer.xcodeproj -scheme OfflinePlayer -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+
+      - name: Package to IPA
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find AudioApp/platforms/ios/build -name "OfflinePlayer.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "OfflinePlayer.app" -type d | head -n 1)
+          fi
+          cp -r "$APP_PATH" Payload/
+          zip -r OfflinePlayer.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OfflinePlayer-IPA
+          path: OfflinePlayer.ipa
