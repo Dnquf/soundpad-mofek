@@ -17,17 +17,17 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Create Cordova Project & Set Target iOS
+      - name: Create Cordova Project & Prepare iOS
         run: |
           cordova create AudioApp com.offline.player OfflinePlayer
           cp index.html AudioApp/www/index.html
           cd AudioApp
           cordova platform add ios
 
-      - name: Build for Real iPhone (arm64, iOS 12.0+)
+      - name: Build Xcode Workspace for Real iPhone
         run: |
           cd AudioApp/platforms/ios
-          xcodebuild -project OfflinePlayer.xcodeproj \
+          xcodebuild -workspace OfflinePlayer.xcworkspace \
                      -scheme OfflinePlayer \
                      -configuration Release \
                      -sdk iphoneos \
