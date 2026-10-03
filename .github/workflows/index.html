@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Офлайн Плеер</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; padding: 20px; background: #f2f2f7; color: #000; }
+        h2 { text-align: center; }
+        .box { background: #fff; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; margin-bottom: 10px; }
+        button, label.btn { display: block; width: 100%; padding: 12px; background: #007aff; color: white; text-align: center; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; box-sizing: border-box; }
+        input[type="file"] { display: none; }
+        ul { list-style: none; padding: 0; }
+        li { background: #fff; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .del-btn { background: #ff3b30; color: white; border: none; padding: 6px 10px; border-radius: 6px; }
+    </style>
+</head>
+<body>
+
+    <h2>Офлайн Плеер</h2>
+
+    <div class="box">
+        <input type="text" id="audioUrl" placeholder="Ссылка на .mp3 файл">
+        <button onclick="downloadAudio()">Скачать по ссылке</button>
+    </div>
+
+    <div class="box">
+        <label class="btn" for="fileInput">📁 Импортировать из «Файлов»</label>
+        <input type="file" id="fileInput" accept="audio/*" onchange="uploadAudio(event)">
+    </div>
+
+    <div class="box">
+        <h3>Сохраненные звуки</h3>
+        <ul id="audioList"></ul>
+    </div>
+
+    <audio id="player" controls style="width: 100%; margin-top: 10px;"></audio>
+
+    <script>
+        let db;
+        const request = indexedDB.open("OfflineAudioDB", 1);
+
+        request.onupgradeneeded = function(e) {
+            db = e.target.result;
+            db.createObjectStore("audioFiles", { keyPath: "id", autoIncrement: true });
+        };
+
+        request.onsuccess = function(e) {
+            db = e.target.result;
+            renderList();
+        };
+
+        function uploadAudio(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                saveToDB(file.name, e.target.result);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function downloadAudio() {
+            const url = document.getElementById("audioUrl").value;
+            if (!url) return;
+            fetch(url)
+                .then(res => res.arrayBuffer())
+                .then(buffer => {
+                    const fileName = url.split('/').pop().split('?')[0] || "audio.mp3";
+                    saveToDB(fileName, buffer);
+                    document.getElementById("audioUrl").value = "";
+                })
+                .catch(() => alert("Ошибка скачивания"));
+        }
+
+        function saveToDB(name, data) {
+            const tx = db.transaction(["audioFiles"], "readwrite");
+            tx.objectStore("audioFiles").add({ name: name, data: data });
+            tx.oncomplete = renderList;
+        }
+
+        function renderList() {
+            const list = document.getElementById("audioList");
+            list.innerHTML = "";
+            const tx = db.transaction(["audioFiles"], "readonly");
+            tx.objectStore("audioFiles").openCursor().onsuccess = function(e) {
+                const cursor = e.target.result;
+                if (cursor) {
+                    const item = cursor.value;
+                    const li = document.createElement("li");
+                    const span = document.createElement("span");
+                    span.textContent = item.name;
+                    span.style.cursor = "pointer";
+                    span.onclick = () => playAudio(item.data);
+
+                    const delBtn = document.createElement("button");
+                    delBtn.textContent = "✕";
+                    delBtn.className = "del-btn";
+                    delBtn.onclick = (evt) => {
+                        evt.stopPropagation();
+                        deleteAudio(item.id);
+                    };
+
+                    li.appendChild(span);
+                    li.appendChild(delBtn);
+                    list.appendChild(li);
+                    cursor.continue();
+                }
+            };
+        }
+
+        function playAudio(arrayBuffer) {
+            const blob = new Blob([arrayBuffer], { type: "audio/mp3" });
+            const player = document.getElementById("player");
+            player.src = URL.createObjectURL(blob);
+            player.play();
+        }
+
+        function deleteAudio(id) {
+            const tx = db.transaction(["audioFiles"], "readwrite");
+            tx.objectStore("audioFiles").delete(id);
+            tx.oncomplete = renderList;
+        }
+    </script>
+</body>
+</html>
